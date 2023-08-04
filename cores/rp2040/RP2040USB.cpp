@@ -40,7 +40,7 @@
 
 // Big, global USB mutex, shared with all USB devices to make sure we don't
 // have multiple cores updating the TUSB state in parallel
-mutex_t __usb_mutex;
+recursive_mutex_t __usb_mutex;
 
 // USB processing will be a periodic timer task
 #define USB_TASK_INTERVAL 1000
@@ -360,9 +360,9 @@ static void usb_irq() {
     // if the mutex is already owned, then we are in user code
     // in this file which will do a tud_task itself, so we'll just do nothing
     // until the next tick; we won't starve
-    if (mutex_try_enter(&__usb_mutex, nullptr)) {
+    if (recursive_mutex_try_enter(&__usb_mutex, nullptr)) {
         tud_task();
-        mutex_exit(&__usb_mutex);
+        recursive_mutex_exit(&__usb_mutex);
     }
 }
 
@@ -382,7 +382,7 @@ void __USBStart() {
     __SetupDescHIDReport();
     __SetupUSBDescriptor();
 
-    mutex_init(&__usb_mutex);
+    recursive_mutex_init(&__usb_mutex);
 
     tusb_init();
 

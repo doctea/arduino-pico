@@ -123,6 +123,7 @@ size_t SerialUSB::write(uint8_t c) {
 }
 
 size_t SerialUSB::write(const uint8_t *buf, size_t length) {
+	return length;
     CoreMutex m(&__usb_mutex, false);
     if (!_running || !m) {
         return 0;
@@ -130,7 +131,7 @@ size_t SerialUSB::write(const uint8_t *buf, size_t length) {
 
     static uint64_t last_avail_time;
     int written = 0;
-    if (tud_cdc_connected()) {
+    //if (tud_cdc_connected()) { // doctea from https://github.com/earlephilhower/arduino-pico/issues/1620 actually seems to caues problem instantly - verify !!!?
         for (size_t i = 0; i < length;) {
             int n = length - i;
             int avail = tud_cdc_write_available();
@@ -153,10 +154,10 @@ size_t SerialUSB::write(const uint8_t *buf, size_t length) {
                 }
             }
         }
-    } else {
+    /*} else {
         // reset our timeout
         last_avail_time = 0;
-    }
+    }*/
     tud_task();
     return written;
 }

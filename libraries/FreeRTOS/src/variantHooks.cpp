@@ -194,7 +194,7 @@ extern "C" void __no_inline_not_in_flash_func(__freertos_resume_other_core)() {
 }
 
 
-extern mutex_t __usb_mutex;
+extern recursive_mutex_t __usb_mutex;
 static TaskHandle_t __usbTask;
 static void __usb(void *param);
 extern volatile bool __freeRTOSinitted;
@@ -472,7 +472,7 @@ static void __usb(void *param) {
     __usbInitted = true;
 
     while (true) {
-        auto m = __get_freertos_mutex_for_ptr(&__usb_mutex);
+        auto m = __get_freertos_recursive_mutex_for_ptr(&__usb_mutex, true);
         if (xSemaphoreTake(m, 0)) {
             tud_task();
             xSemaphoreGive(m);
@@ -485,7 +485,7 @@ extern void __SetupDescHIDReport();
 extern void __SetupUSBDescriptor();
 
 void __USBStart() {
-    mutex_init(&__usb_mutex);
+    recursive_mutex_init(&__usb_mutex);
 
     __SetupDescHIDReport();
     __SetupUSBDescriptor();

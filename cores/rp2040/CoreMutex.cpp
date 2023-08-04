@@ -24,13 +24,14 @@
 #include "Arduino.h"
 #include "CoreMutex.h"
 
-CoreMutex::CoreMutex(mutex_t *mutex, uint8_t option) {
+CoreMutex::CoreMutex(recursive_mutex_t *mutex, uint8_t option) {
     _mutex = mutex;
     _acquired = false;
     _option = option;
     _pxHigherPriorityTaskWoken = 0; // pdFALSE
+    _recursive = true;
     if (__isFreeRTOS) {
-        auto m = __get_freertos_mutex_for_ptr(mutex);
+        auto m = __get_freertos_mutex_for_ptr(reinterpret_cast<mutex_t*>(mutex), true);
 
         if (__freertos_check_if_in_isr()) {
             if (!__freertos_mutex_take_from_isr(m, &_pxHigherPriorityTaskWoken)) {
@@ -43,14 +44,47 @@ CoreMutex::CoreMutex(mutex_t *mutex, uint8_t option) {
         }
     } else {
         uint32_t owner;
-        if (!mutex_try_enter(_mutex, &owner)) {
+        if (!recursive_mutex_try_enter(reinterpret_cast<recursive_mutex_t*>(_mutex), &owner)) {
             if (owner == get_core_num()) { // Deadlock!
                 if (_option & DebugEnable) {
                     DEBUGCORE("CoreMutex - Deadlock detected!\n");
                 }
                 return;
             }
-            mutex_enter_blocking(_mutex);
+            recursive_mutex_enter_blocking(reinterpret_cast<recursive_mutex_t*>(_mutex));
+        }
+    }
+    _acquired = true;
+}
+
+CoreMutex::CoreMutex(mutex_t *mutex, uint8_t option) {
+    _mutex = mutex;
+    _acquired = false;
+    _option = option;
+    _pxHigherPriorityTaskWoken = 0; // pdFALSE
+    _recursive = false;
+    if (__isFreeRTOS) {
+        auto m = __get_freertos_mutex_for_ptr(reinterpret_cast<mutex_t*>(mutex));
+
+        if (__freertos_check_if_in_isr()) {
+            if (!__freertos_mutex_take_from_isr(m, &_pxHigherPriorityTaskWoken)) {
+                return;
+            }
+            // At this point we have the mutex in ISR
+        } else {
+            // Grab the mutex normally, possibly waking other tasks to get it
+            __freertos_mutex_take(m);
+        }
+    } else {
+        uint32_t owner;
+        if (!mutex_try_enter(reinterpret_cast<mutex_t*>(_mutex), &owner)) {
+            if (owner == get_core_num()) { // Deadlock!
+                if (_option & DebugEnable) {
+                    DEBUGCORE("CoreMutex - Deadlock detected!\n");
+                }
+                return;
+            }
+            mutex_enter_blocking(reinterpret_cast<mutex_t*>(_mutex));
         }
     }
     _acquired = true;
@@ -59,14 +93,18 @@ CoreMutex::CoreMutex(mutex_t *mutex, uint8_t option) {
 CoreMutex::~CoreMutex() {
     if (_acquired) {
         if (__isFreeRTOS) {
-            auto m = __get_freertos_mutex_for_ptr(_mutex);
+            auto m = __get_freertos_mutex_for_ptr(reinterpret_cast<mutex_t*>(_mutex), _recursive);
             if (__freertos_check_if_in_isr()) {
                 __freertos_mutex_give_from_isr(m, &_pxHigherPriorityTaskWoken);
             } else {
                 __freertos_mutex_give(m);
             }
         } else {
-            mutex_exit(_mutex);
+            if (_recursive) {
+                recursive_mutex_exit(reinterpret_cast<recursive_mutex_t*>(_mutex));
+            } else {
+                mutex_exit(reinterpret_cast<mutex_t*>(_mutex));
+            }
         }
     }
 }

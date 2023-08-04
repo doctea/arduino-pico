@@ -58,3 +58,4 @@ extern "C" {
     extern void __freertos_resume_other_core() __attribute__((weak));
 }
 extern SemaphoreHandle_t __get_freertos_mutex_for_ptr(mutex_t *m, bool recursive = false);
+extern SemaphoreHandle_t __get_freertos_recursive_mutex_for_ptr(recursive_mutex_t *m, bool recursive = false);

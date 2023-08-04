@@ -32,6 +32,7 @@ enum {
 
 class CoreMutex {
 public:
+    CoreMutex(recursive_mutex_t *mutex, uint8_t option = DebugEnable);
     CoreMutex(mutex_t *mutex, uint8_t option = DebugEnable);
     ~CoreMutex();
 
@@ -40,7 +41,8 @@ public:
     }
 
 private:
-    mutex_t *_mutex;
+    bool _recursive;
+    void *_mutex;
     bool _acquired;
     uint8_t _option;
     BaseType_t _pxHigherPriorityTaskWoken;
